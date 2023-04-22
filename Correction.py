@@ -2,10 +2,13 @@
 
 from subprocess import *
 from csv import *
+import sys
 
 
+"""
+Return the comparison between two strings
+"""
 def same_string(chaine_un, chaine_deux):
-
     if len(chaine_un) != len(chaine_deux):
         return False
     else:
@@ -14,20 +17,18 @@ def same_string(chaine_un, chaine_deux):
                 return False
     return True
 
+"""
+Return the amount of documentation blocks
+"""
+def compte_doc(fichier, folder):
 
+    # Retrieves the documentation lines
+    liste = ((run(["grep", "-i", "/*[^a-zA-Z0123456789]*/", folder + fichier], capture_output="True").stdout).decode(encoding="utf8")).split("*/")
 
-
-
-
-def compte_doc(fichier):
-
-    liste = ((run(["grep", "-i", "/*[^a-zA-Z0123456789]*/", "eleves_bis/" + fichier], capture_output="True").stdout).decode(encoding="utf8")).split("*/")
-    
     chaine = ""
     compteur =  0
-    
     print(liste)
-    
+
     for i in range(len(liste)):
         for j in range(len(liste[i])):
             if liste[i][j] != " " and liste[i][j] != "/" and liste[i][j] != "*" and liste[i][j] != "\n":
@@ -40,22 +41,15 @@ def compte_doc(fichier):
                     
                     if liste[i][j] == "\n":
                         compteur = compteur + 1
-                    
-				
-						
-						
-
-            
-    
-	
-	#double boucle pour parcourir la chaine savoir si c'est en début de ligne
-	
     return compteur
 
-def test(executable):
 
+"""
+Returns the amount of tests which gave the expected answer
+"""
+def test(executable):
     test_valides = 0
-    liste = [(0, 0), (1, 0), (0, 1), (1, 1), (12, 12), (12, -43), (-1, -52)]
+    liste = [(0, 0), (1, 0), (0, 1), (1, 1), (12, 12), (12, -43), (-1, -52)] # Program arguments we want to check the output
 
     for i in range(7):
         (first, second) = liste[i]
@@ -70,95 +64,97 @@ def test(executable):
     return test_valides
 
 
-
+"""
+Return a list string of the filename without the extension
+"""
 def enleve_extension(liste):
-	
     print(liste)
-	
-
     element = liste[1]
-
     list_elem = []
 
     for i in range(len(element)):
         list_elem.append(element[i])
 
-
     for i in range(2):
         list_elem.pop()
 
     element = "".join(list_elem)
-
     liste[1] = element
-
-
     return liste
 
 
 
+# =========== Main ==========================
+
+number_arguments = len(sys.argv)
+result_name_file = "out.csv"
 
 
-run(["unzip", "Rendus_eleves"]) # On dézippe l'archive donnée
-programmes = ((run(["ls", "eleves_bis/"], capture_output=True).stdout).decode(encoding="utf8")).split("\n") # On dézippe l'archive donnée
+if number_arguments != 3 and number_arguments != 4:
+    print("Usage : ./Correction.py [path of the archive] [folder_name] \n ./Correction.py [path of the archive] [folder_name] [result_name_file].csv")
+    exit(1)
+elif number_arguments == 4:
+    result_name_file = sys.argv[3]
+    if not result_name_file.endswith(".csv"):
+        print("The file name must be a csv extension.")
+        exit(1)
 
+archive_name = sys.argv[1]
+folder_name = sys.argv[2] + "/"
 
+if not archive_name.endswith(".zip"):
+    print("The zip name must be a zip.")
+    exit(1)
 
+# unzip the archive
+run(["unzip", archive_name])
+programmes = ((run(["ls", folder_name], capture_output=True).stdout).decode(encoding="utf8")).split("\n") # C files list
+
+#List of all the lines we want to write in the result file
 lignes =[]
 
-for i in range(len(programmes)-1):
+exec_name = 'executable'
+
+for i in range(len(programmes) - 1):
+    print(programmes[i])  # Display
+
+    # List where we retrieve the current C file information
     chaine_descriptive = []
 
-    compilation = run(["gcc", 'eleves_bis/' + programmes[i], "-ansi", "-Wall", "-o", "executable"], capture_output="True")
-
-    existe_ex = (run(["ls", "executable"], capture_output="True").stderr).decode(encoding="utf8")
-
-
-    print(programmes[i])
+    # Check compilation by looking for an executable presence
+    compilation = run(["gcc", folder_name + programmes[i], "-ansi", "-Wall", "-o", exec_name], capture_output="True")
+    existe_ex = (run(["ls", exec_name], capture_output="True").stderr).decode(encoding="utf8")
     nom = enleve_extension(programmes[i].split("_"))
-
-
     nombre_warning = len(((compilation.stderr).decode(encoding="utf8").split("warning"))) - 1
-    
- 
-    
 
-	
     chaine_descriptive.append(nom[0])
     chaine_descriptive.append(nom[1])
 
-
-    if existe_ex != "":
+    if existe_ex != "": # There is an executable
         chaine_descriptive.append(0)
         chaine_descriptive.append(nombre_warning)
         chaine_descriptive.append(0)
     else:
-        print(nom[0]+nom[1]+str(existe_ex))
+        print(nom[0]+nom[1]+ str(existe_ex))
         chaine_descriptive.append(1)
         chaine_descriptive.append(nombre_warning)
-        chaine_descriptive.append(test("executable"))
-        run(["rm", "executable"])
+        chaine_descriptive.append(test(exec_name))
+        run(["rm", exec_name])
 
-    chaine_descriptive.append(compte_doc(programmes[i]))
-
+    chaine_descriptive.append(compte_doc(programmes[i], folder_name))
     lignes.append(chaine_descriptive)
-
     print(str(chaine_descriptive)+"\n")
 
+print("Nombre de fichiers : " + str(len(programmes)))
 
+# csv writing part
+run(["touch", result_name_file]) # create the file
 
-print("Nombre de fichiers : "+str(len(programmes)))
-
-
-run(["touch", "fichier.csv"])
-
-
-
-
-file = open('fichier.csv', 'w', newline='')
-
+file = open(result_name_file, 'w', newline='') # Open the file in write mode
 ecrit = writer(file,delimiter=',', quotechar=',', quoting=QUOTE_MINIMAL)
 
+# We write ach line in the file
 for i in range(len(lignes)):
-
     ecrit.writerow(lignes[i])
+
 
